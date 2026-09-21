@@ -27,6 +27,53 @@ const WORKER_PATH = asset("tesseract/worker.min.js");
 const CORE_PATH = asset("tesseract/core");
 const LANG_PATH = asset("tesseract/lang");
 
+const LANGS = ["tha", "eng"] as const;
+
+/**
+ * Some static hosts serve only a fixed set of file types and will not hand out
+ * the `.traineddata.gz` files, which leaves OCR unable to start. Building with
+ * VITE_OCR_INLINE_LANG=1 also emits the same bytes as a .js module
+ * (scripts/inline-ocr-lang.mjs) and seeds them into the engine's own cache.
+ */
+const INLINE_LANG = import.meta.env.VITE_OCR_INLINE_LANG === "1";
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/**
+ * Writes the inlined language data straight into the idb-keyval store that
+ * tesseract reads before it fetches anything, under the keys it looks for
+ * (`./<lang>.traineddata`). It sniffs the gzip magic bytes and inflates them
+ * itself, so these go in exactly as generated.
+ *
+ * This seeds the cache rather than passing `{ code, data }` objects to
+ * createWorker, which would be the obvious route: tesseract.js 7 builds the
+ * language string for its initialise step with `l.data` instead of `l.code`
+ * (worker-script/index.js), so the object form makes it look for a language
+ * named after the raw bytes and fail. Strings avoid that path entirely.
+ */
+async function primeLangCache(): Promise<void> {
+  const [{ get, set }, { LANGDATA }] = await Promise.all([
+    import("idb-keyval"),
+    import(/* @vite-ignore */ asset("tesseract/lang/langdata.js")) as Promise<{
+      LANGDATA: Record<string, string>;
+    }>,
+  ]);
+
+  await Promise.all(
+    LANGS.map(async (code) => {
+      const key = `./${code}.traineddata`;
+      // A previous visit already seeded it, or tesseract cached it itself.
+      if ((await get(key)) !== undefined) return;
+      await set(key, base64ToBytes(LANGDATA[code]));
+    }),
+  );
+}
+
 /**
  * Tesseract can wedge instead of rejecting when initialisation fails — a
  * missing core or corrupt language file leaves the load promise pending. These
@@ -70,24 +117,26 @@ function getWorker(onProgress?: (p: OcrProgress) => void): Promise<Worker> {
   workerPromise ??= withTimeout(
     // OEM 1 is the LSTM engine — better on the low-contrast thermal print
     // receipts are usually on, and the only core variant shipped.
-    createWorker(["tha", "eng"], 1, {
-      workerPath: WORKER_PATH,
-      corePath: CORE_PATH,
-      langPath: LANG_PATH,
+    (INLINE_LANG ? primeLangCache() : Promise.resolve()).then(() =>
+      createWorker([...LANGS], 1, {
+        workerPath: WORKER_PATH,
+        corePath: CORE_PATH,
+        langPath: LANG_PATH,
       // Without this, a failure inside the worker surfaces as an unhandled
       // error on window rather than rejecting the promise we are awaiting.
-      errorHandler: (err) => {
-        throw err instanceof Error ? err : new Error(String(err));
-      },
-      logger: (m) => {
-        if (!onProgress) return;
-        if (m.status === "recognizing text") {
-          onProgress({ stage: "recognising", value: m.progress });
-        } else {
-          onProgress({ stage: "loading", value: m.progress });
-        }
-      },
-    }),
+        errorHandler: (err) => {
+          throw err instanceof Error ? err : new Error(String(err));
+        },
+        logger: (m) => {
+          if (!onProgress) return;
+          if (m.status === "recognizing text") {
+            onProgress({ stage: "recognising", value: m.progress });
+          } else {
+            onProgress({ stage: "loading", value: m.progress });
+          }
+        },
+      }),
+    ),
     LOAD_TIMEOUT_MS,
     "OCR startup",
   ).catch((err) => {

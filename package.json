@@ -11,10 +11,12 @@
     "validate:palette": "node scripts/validate-palette.mjs",
     "icons": "node scripts/gen-icons.mjs",
     "predev": "node scripts/sync-ocr-assets.mjs",
-    "prebuild": "node scripts/sync-ocr-assets.mjs"
+    "prebuild": "node scripts/sync-ocr-assets.mjs",
+    "build:inline-lang": "node scripts/inline-ocr-lang.mjs && VITE_OCR_INLINE_LANG=1 vite build"
   },
   "dependencies": {
     "idb": "^8.0.3",
+    "idb-keyval": "^6.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tesseract.js": "^7.0.0"
