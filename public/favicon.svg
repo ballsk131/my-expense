@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ใบเสร็จ">
+  <rect width="512" height="512" rx="113" fill="#0f6b73"/>
+  <path fill="#fff" d="M154 113h204v266l-25.5-25.5L307 379l-25.5-25.5L256 379l-25.5-25.5L205 379l-25.5-25.5L154 379z"/>
+  <g fill="#0f6b73">
+    <rect x="179" y="179" width="154" height="19" rx="4"/>
+    <rect x="179" y="230" width="154" height="19" rx="4"/>
+    <rect x="179" y="281" width="103" height="19" rx="4"/>
+  </g>
+</svg>

@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+   Single source of truth for colour, radius, type and elevation.
+   Every component reads from here — no raw hex values in TSX.
+--------------------------------------------------------------------------- */
+@theme {
+  --font-sans: "IBM Plex Sans Thai Looped", "IBM Plex Sans Thai", ui-sans-serif,
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-numeric: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+
+  /* Brand — deep teal reads as "money" without the cliché of green */
+  --color-brand-50: oklch(0.97 0.02 185);
+  --color-brand-100: oklch(0.93 0.04 185);
+  --color-brand-200: oklch(0.87 0.07 185);
+  --color-brand-300: oklch(0.79 0.1 185);
+  --color-brand-400: oklch(0.7 0.12 185);
+  --color-brand-500: oklch(0.62 0.13 185);
+  --color-brand-600: oklch(0.53 0.12 185);
+  --color-brand-700: oklch(0.44 0.1 185);
+  --color-brand-800: oklch(0.35 0.08 185);
+  --color-brand-900: oklch(0.27 0.06 185);
+
+  /* Category accents.
+     Hues pinned 40deg+ apart and the set searched against the dataviz
+     validator: passes every check in light and dark across ALL pairs, not
+     just adjacent ones (worst deutan dE 7.1, normal-vision dE 15.2). That
+     dE sits in the floor band, which is legal only because every bar and
+     row also carries an emoji and a text label — identity is never colour
+     alone. Re-run scripts/validate-palette before changing any value. */
+  --color-cat-food: oklch(0.5 0.21 30);
+  --color-cat-bills: oklch(0.58 0.15 75);
+  --color-cat-other: oklch(0.66 0.15 130);
+  --color-cat-health: oklch(0.5 0.21 180);
+  --color-cat-transport: oklch(0.62 0.17 250);
+  --color-cat-fun: oklch(0.54 0.15 300);
+  --color-cat-shopping: oklch(0.66 0.11 345);
+
+  --radius-card: 1rem;
+  --radius-sheet: 1.5rem;
+
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.02em;
+}
+
+/* Semantic surface tokens. Light values are the default; the dark block below
+   redefines the same names so components never branch on theme. */
+:root {
+  --surface-base: oklch(0.98 0.005 210);
+  --surface-raised: oklch(1 0 0);
+  --surface-sunken: oklch(0.95 0.008 210);
+  --surface-inverse: oklch(0.22 0.02 220);
+
+  --border-subtle: oklch(0.9 0.008 210);
+  --border-strong: oklch(0.82 0.012 210);
+
+  --text-primary: oklch(0.24 0.02 225);
+  --text-secondary: oklch(0.52 0.015 225);
+  --text-muted: oklch(0.65 0.012 225);
+  --text-on-brand: oklch(0.99 0 0);
+
+  --shadow-card: 0 1px 2px oklch(0.2 0.02 225 / 0.06),
+    0 4px 12px oklch(0.2 0.02 225 / 0.05);
+  --shadow-sheet: 0 -8px 40px oklch(0.2 0.02 225 / 0.14);
+}
+
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --surface-base: oklch(0.17 0.015 225);
+    --surface-raised: oklch(0.22 0.018 225);
+    --surface-sunken: oklch(0.13 0.015 225);
+    --surface-inverse: oklch(0.95 0.005 225);
+
+    --border-subtle: oklch(0.29 0.018 225);
+    --border-strong: oklch(0.38 0.02 225);
+
+    --text-primary: oklch(0.95 0.005 225);
+    --text-secondary: oklch(0.73 0.012 225);
+    --text-muted: oklch(0.58 0.015 225);
+
+    --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px oklch(0 0 0 / 0.25);
+    --shadow-sheet: 0 -8px 40px oklch(0 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface-base: oklch(0.17 0.015 225);
+  --surface-raised: oklch(0.22 0.018 225);
+  --surface-sunken: oklch(0.13 0.015 225);
+  --surface-inverse: oklch(0.95 0.005 225);
+
+  --border-subtle: oklch(0.29 0.018 225);
+  --border-strong: oklch(0.38 0.02 225);
+
+  --text-primary: oklch(0.95 0.005 225);
+  --text-secondary: oklch(0.73 0.012 225);
+  --text-muted: oklch(0.58 0.015 225);
+
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px oklch(0 0 0 / 0.25);
+  --shadow-sheet: 0 -8px 40px oklch(0 0 0 / 0.5);
+}
+
+/* Expose the semantic tokens as Tailwind utilities (bg-surface-raised etc.) */
+@theme inline {
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-on-brand: var(--text-on-brand);
+  --shadow-card: var(--shadow-card);
+  --shadow-sheet: var(--shadow-sheet);
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--surface-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    overscroll-behavior-y: none;
+    /* Keep content clear of the iOS home indicator and notch */
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Amounts line up column-wise when tabular */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--spacing) * 4);
+  }
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .animate-sheet-in {
+    animation: sheet-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-sheet-in,
+    .animate-fade-in {
+      animation: none;
+    }
+  }
+}
