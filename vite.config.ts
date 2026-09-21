@@ -4,6 +4,9 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  // Relative asset URLs, so a build works from the domain root or from any
+  // subdirectory without rebuilding.
+  base: "./",
   plugins: [
     react(),
     tailwindcss(),

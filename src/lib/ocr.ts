@@ -14,10 +14,18 @@ export interface OcrProgress {
  * origin — scripts/sync-ocr-assets.mjs copies them out of node_modules at
  * build time. Nothing reaches a CDN, so scanning works offline and no third
  * party sees a request when someone photographs a receipt.
+ *
+ * Resolved against the document's base URL rather than hardcoded to the root,
+ * so the app also works when it is served from a subdirectory (project pages,
+ * a preview deploy). Tesseract hands `corePath` to `importScripts` inside the
+ * worker, where a relative path would resolve against the worker's own URL —
+ * hence full absolute URLs here.
  */
-const WORKER_PATH = "/tesseract/worker.min.js";
-const CORE_PATH = "/tesseract/core";
-const LANG_PATH = "/tesseract/lang";
+const asset = (path: string) => new URL(path, document.baseURI).href;
+
+const WORKER_PATH = asset("tesseract/worker.min.js");
+const CORE_PATH = asset("tesseract/core");
+const LANG_PATH = asset("tesseract/lang");
 
 /**
  * Tesseract can wedge instead of rejecting when initialisation fails — a
