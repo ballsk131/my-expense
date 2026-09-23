@@ -29,3 +29,6 @@ public/tesseract/
 # Python bytecode from scripts/
 __pycache__/
 *.py[cod]
+
+# สมุดบัญชีจริง มีชื่อบุคคลและยอดเงิน เก็บไว้ใน Artifact ส่วนตัวแทน
+ledger-dashboard/data.js
