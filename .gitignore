@@ -25,3 +25,7 @@ dist-ssr
 
 # Vendored from node_modules by scripts/sync-ocr-assets.mjs
 public/tesseract/
+
+# Python bytecode from scripts/
+__pycache__/
+*.py[cod]
