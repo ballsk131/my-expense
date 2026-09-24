@@ -622,7 +622,7 @@
     document.getElementById('pHelp').value=planState.help;
     var fh='';
     PLAN.fixed.forEach(function(f){
-      fh+='<div class="pr"><span class="lb">'+f.k+'<span class="tag">'+f.n+'</span></span><span class="vv num">−'+baht(f.v)+'</span></div>';
+      fh+='<div class="pr"><span class="lb">'+esc(f.k)+(f.n?'<span class="tag">'+esc(f.n)+'</span>':'')+'</span><span class="vv num">−'+baht(f.v)+'</span></div>';
     });
     var ftot=PLAN.fixed.reduce(function(a,b){return a+b.v;},0);
     fh+='<div class="pr sum"><span class="lb">รวมผูกพัน</span><span class="vv num">−'+baht(ftot)+'</span></div>';
