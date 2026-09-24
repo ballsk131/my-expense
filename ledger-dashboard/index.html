@@ -251,7 +251,6 @@
     <details class="why" id="heroWhy">
       <summary>คิดมาจากไหน</summary>
       <div class="body" id="heroRows"></div>
-      <div class="pr"><span class="lb">อยากกันไว้เป็นเงินเก็บ<span class="tag">ใส่แล้วยอดข้างบนจะหักให้</span></span><input id="capGoal" type="number" step="500" inputmode="numeric"></div>
     </details>
   </div>
 
@@ -294,7 +293,11 @@
   <div data-panel="plan" hidden>
 
   <section id="capSec" hidden>
-    <h2>ถ้าอยากเก็บให้ได้มากกว่านี้</h2>
+    <h2>งบที่ยังใช้ได้จนจบรอบ</h2>
+    <div class="pl">
+      <div class="pr"><span class="lb" id="capLb">ยังใช้ได้อีกจนจบรอบ</span><span class="vv num" id="capV"></span></div>
+      <div class="pr"><span class="lb">อยากกันไว้เป็นเงินเก็บ<span class="tag">ใส่แล้วงบข้างบนจะหักให้</span></span><input id="capGoal" type="number" step="500" inputmode="numeric"></div>
+    </div>
     <div class="day"><div class="dayscroll"><table class="dt" id="capTbl"></table></div></div>
   </section>
 
@@ -370,6 +373,7 @@
   function thMonth(ym){var p=ym.split('-');return THMON[+p[1]-1]+' '+((+p[0])+543-2500).toString().padStart(2,'0');}
   function baht(n){return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
   function short(n){return n.toLocaleString('en-US',{maximumFractionDigits:0});}
+  function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
   try{var s=localStorage.getItem('ledger.month'); if(s && months.indexOf(s)>=0) cur=s;}catch(e){}
 
@@ -541,6 +545,14 @@
       baht(C.living+C.interest)+' − เงินต้นค่างวด '+baht(C.principal)+
       (C.invest?' − ลงทุน '+baht(C.invest):'');
   }
+  /* เงินสดจริงในบัญชี — แยกก้อนที่กันไว้จ่ายค่างวด/ประกันออกจากก้อนที่ใช้ได้จริง */
+  function cashNow(){
+    var A=META.actual;
+    if(!A||!A.accounts||!A.accounts.length) return null;
+    var spend=0, hold=0;
+    A.accounts.forEach(function(a){ if(a.hold) hold+=a.v; else spend+=a.v; });
+    return {spend:spend, hold:hold, asof:A.asof, accounts:A.accounts};
+  }
   function paintCap(){
     var C=META.cash[cur], cr=cycleRange(cur), td=new Date(PLAN.today+'T00:00:00');
     var help=(planState&&planState.help!==undefined)?planState.help:PLAN.help;
@@ -548,17 +560,47 @@
     var pending=Math.max(0,ft-C.fixed_paid);
     var cap=inc-ft-C.flex_spent-capGoal;
     var daysLeft=Math.max(1,Math.round((cr.end-td)/86400000)+1);
-    document.getElementById('hero').className='hero '+(cap<0?'bad':'good');
-    document.getElementById('heroK').textContent=cap<0?'ใช้เกินไปแล้ว':'ยังใช้ได้อีกจนจบรอบ';
-    document.getElementById('heroV').textContent=(cap<0?'−':'')+baht(Math.abs(cap));
-    document.getElementById('heroPer').innerHTML= cap<0
-      ? 'เกินมา '+baht(-cap)+' จะไปกินเงินเก็บ'
-      : 'เหลืออีก <b>'+daysLeft+' วัน</b> → ใช้ได้วันละ <b>'+baht(cap/daysLeft)+'</b>';
-    document.getElementById('heroRows').innerHTML=
-      '<div class="pr"><span class="lb">เงินเข้ารอบนี้<span class="tag">เงินเดือนสุทธิ '+baht(PLAN.net)+' + พี่สาวช่วยออก '+baht(help)+'</span></span><span class="vv num">+'+baht(inc)+'</span></div>'+
-      '<div class="pr"><span class="lb">รายจ่ายผูกพันทั้งรอบ<span class="tag">จ่ายไปแล้ว '+baht(C.fixed_paid)+' · ยังไม่ถึงกำหนด '+baht(pending)+'</span></span><span class="vv num">−'+baht(ft)+'</span></div>'+
-      '<div class="pr"><span class="lb">ใช้จ่ายทั่วไปไปแล้ว<span class="tag">อาหาร เดินทาง ช้อปปิ้ง บันเทิง สุขภาพ</span></span><span class="vv num">−'+baht(C.flex_spent)+'</span></div>'+
-      (capGoal>0?'<div class="pr"><span class="lb">กันไว้เป็นเงินเก็บ</span><span class="vv num">−'+baht(capGoal)+'</span></div>':'');
+    var A=cashNow();
+    var capTxt=(cap<0?'−':'')+baht(Math.abs(cap));
+    var perDay=cap<0?'เกินงบมาแล้ว':'ใช้ได้วันละ '+baht(cap/daysLeft);
+
+    /* เลขเด่น = เงินสดที่ใช้ได้จริงตอนนี้ ไม่ใช่งบที่เหลือตามแผน */
+    if(A){
+      var asof=A.asof?fmtDay(new Date(A.asof+'T00:00:00')):'';
+      document.getElementById('hero').className='hero '+(A.spend<=0?'bad':'good');
+      document.getElementById('heroK').textContent='ใช้ได้จริงตอนนี้';
+      document.getElementById('heroV').textContent=(A.spend<0?'−':'')+baht(Math.abs(A.spend));
+      document.getElementById('heroPer').innerHTML=
+        (A.hold>0?'กันไว้จ่ายค่างวด/ประกันอีก <b>'+baht(A.hold)+'</b><br>':'')+
+        'ยอดบัญชี ณ '+asof+' · งบที่เหลือตามแผน '+capTxt;
+      document.getElementById('heroRows').innerHTML=
+        A.accounts.map(function(a){
+          return '<div class="pr"><span class="lb">'+esc(a.k)+
+            '<span class="tag">'+(a.hold?'กันไว้แล้ว ไม่นับเป็นเงินที่ใช้ได้':'อัปเดต '+esc(a.d||''))+'</span></span>'+
+            '<span class="vv num">'+baht(a.v)+'</span></div>';
+        }).join('')+
+        '<div class="pr"><span class="lb">งบที่เหลือตามแผนทั้งรอบ<span class="tag">เงินเข้า '+baht(inc)+
+          ' − ผูกพัน '+baht(ft)+' − ใช้ทั่วไปแล้ว '+baht(C.flex_spent)+
+          (capGoal>0?' − กันเป็นเงินเก็บ '+baht(capGoal):'')+'</span></span>'+
+          '<span class="vv num">'+capTxt+'</span></div>';
+    }else{
+      document.getElementById('hero').className='hero '+(cap<0?'bad':'good');
+      document.getElementById('heroK').textContent=cap<0?'ใช้เกินไปแล้ว':'ยังใช้ได้อีกจนจบรอบ';
+      document.getElementById('heroV').textContent=capTxt;
+      document.getElementById('heroPer').innerHTML= cap<0
+        ? 'เกินมา '+baht(-cap)+' จะไปกินเงินเก็บ'
+        : 'เหลืออีก <b>'+daysLeft+' วัน</b> → ใช้ได้วันละ <b>'+baht(cap/daysLeft)+'</b>';
+      document.getElementById('heroRows').innerHTML=
+        '<div class="pr"><span class="lb">เงินเข้ารอบนี้<span class="tag">เงินเดือนสุทธิ '+baht(PLAN.net)+' + พี่สาวช่วยออก '+baht(help)+'</span></span><span class="vv num">+'+baht(inc)+'</span></div>'+
+        '<div class="pr"><span class="lb">รายจ่ายผูกพันทั้งรอบ<span class="tag">จ่ายไปแล้ว '+baht(C.fixed_paid)+' · ยังไม่ถึงกำหนด '+baht(pending)+'</span></span><span class="vv num">−'+baht(ft)+'</span></div>'+
+        '<div class="pr"><span class="lb">ใช้จ่ายทั่วไปไปแล้ว<span class="tag">อาหาร เดินทาง ช้อปปิ้ง บันเทิง สุขภาพ</span></span><span class="vv num">−'+baht(C.flex_spent)+'</span></div>'+
+        (capGoal>0?'<div class="pr"><span class="lb">กันไว้เป็นเงินเก็บ</span><span class="vv num">−'+baht(capGoal)+'</span></div>':'');
+    }
+
+    document.getElementById('capLb').innerHTML=(cap<0?'ใช้เกินงบไปแล้ว':'ยังใช้ได้อีกจนจบรอบ')+
+      '<span class="tag">เหลืออีก '+daysLeft+' วัน · '+perDay+'</span>';
+    document.getElementById('capV').textContent=capTxt;
+
     var h='<thead><tr><th>ถ้าอยากเก็บให้ได้</th><th>เหลือใช้ได้</th><th>ต่อวัน ('+daysLeft+' วัน)</th></tr></thead><tbody>';
     [0,3000,5000,8000,10000,15000].forEach(function(gv){
       var c2=inc-ft-C.flex_spent-gv;
