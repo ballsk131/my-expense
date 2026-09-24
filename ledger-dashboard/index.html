@@ -373,6 +373,7 @@
 
   function thMonth(ym){var p=ym.split('-');return THMON[+p[1]-1]+' '+((+p[0])+543-2500).toString().padStart(2,'0');}
   function baht(n){return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function round2(n){return Math.round(n*100)/100;}
   function short(n){return n.toLocaleString('en-US',{maximumFractionDigits:0});}
   /* ชื่อหมวดที่เก็บในข้อมูลกับชื่อที่อ่านเข้าใจ ไม่จำเป็นต้องเหมือนกัน
      'ผ่อนสินทรัพย์' เก็บแต่ดอกเบี้ย เงินต้นแยกไปหมวด 'เงินต้นสินเชื่อ' แล้ว */
@@ -564,6 +565,31 @@
     A.accounts.forEach(function(a){ if(a.hold) hold+=a.v; else spend+=a.v; });
     return {spend:spend, hold:hold, asof:A.asof, accounts:A.accounts};
   }
+  /* "เหลือเป็นเงินสด" คือการเคลื่อนไหวของรอบ ส่วน "ใช้ได้จริง" คือยอดคงเหลือ ณ วันหนึ่ง
+     สองอย่างนี้ต่างกันเสมอ บล็อกนี้กางให้เห็นว่าต่างกันด้วยอะไรบ้าง */
+  function bridgeRows(A,C){
+    var B=(META.bridge||{})[cur];
+    if(!B||!C) return '';
+    var tot=A.spend+A.hold, fl=B.float||0;
+    var opening=(B.opening===null||B.opening===undefined) ? round2(tot-C.left-fl) : B.opening;
+    var derived=(B.opening===null||B.opening===undefined);
+    var gap=round2(tot-C.left-fl-opening);          /* ศูนย์เสมอเมื่อคำนวณย้อน */
+    function row(lb,tag,v,cls){
+      return '<div class="pr'+(cls?' '+cls:'')+'"><span class="lb">'+lb+
+        (tag?'<span class="tag">'+tag+'</span>':'')+'</span>'+
+        '<span class="vv num">'+(v<0?'−':'+')+baht(Math.abs(v))+'</span></div>';
+    }
+    return '<div class="plh">ทำไมไม่เท่ากับ “เหลือเป็นเงินสด”</div>'+
+      row('เหลือเป็นเงินสดรอบนี้','เงินเข้าลบเงินออก ตั้งแต่ต้นรอบ',C.left)+
+      row('ยอดยกมาจากรอบก่อน', derived
+            ? 'คำนวณย้อนจากสมการ ยังไม่มี statement ต้นรอบยืนยัน'
+            : 'ยอดปิดของรอบที่แล้ว', opening)+
+      (fl?row('บิลบัตรที่หักแล้วแต่เงินยังไม่ออก',esc(B.float_note||''),fl):'')+
+      (Math.abs(gap)>=0.01?row('ยอดที่ยังอธิบายไม่ได้','ควรเป็น 0 ถ้าเจอตัวเลขนี้แปลว่ามีรายการที่ระบบยังไม่เห็น',gap):'')+
+      '<div class="pr sum"><span class="lb">เงินในทุกบัญชี</span><span class="vv num">'+baht(tot)+'</span></div>'+
+      (A.hold?row('กันไว้จ่ายค่างวด/ประกัน','อยู่ใน KBank x144-7 แตะไม่ได้',-A.hold):'')+
+      '<div class="pr sum"><span class="lb">ใช้ได้จริง</span><span class="vv num">'+baht(A.spend)+'</span></div>';
+  }
   function paintCap(){
     var C=META.cash[cur], cr=cycleRange(cur), td=new Date(PLAN.today+'T00:00:00');
     var help=(planState&&planState.help!==undefined)?planState.help:PLAN.help;
@@ -585,11 +611,14 @@
         (A.hold>0?'กันไว้จ่ายค่างวด/ประกันอีก <b>'+baht(A.hold)+'</b><br>':'')+
         'ยอดบัญชี ณ '+asof;
       document.getElementById('heroRows').innerHTML=
+        '<div class="plh">ยอดแต่ละบัญชี</div>'+
         A.accounts.map(function(a){
           return '<div class="pr"><span class="lb">'+esc(a.k)+
             '<span class="tag">'+(a.hold?'กันไว้แล้ว ไม่นับเป็นเงินที่ใช้ได้':'อัปเดต '+esc(a.d||''))+'</span></span>'+
             '<span class="vv num">'+baht(a.v)+'</span></div>';
         }).join('')+
+        bridgeRows(A,C)+
+        '<div class="plh">เทียบกับแผน</div>'+
         '<div class="pr"><span class="lb">งบที่เหลือตามแผนทั้งรอบ<span class="tag">เงินเข้า '+baht(inc)+
           ' − ผูกพัน '+baht(ft)+' − ใช้ทั่วไปแล้ว '+baht(C.flex_spent)+
           (capGoal>0?' − กันเป็นเงินเก็บ '+baht(capGoal):'')+'</span></span>'+
