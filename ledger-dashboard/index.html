@@ -266,15 +266,13 @@
 
   <div class="tiles">
     <div class="tile i"><div class="k">เงินเข้าบัญชี</div><div class="v num" id="tIn">—</div><div class="s" id="tInS"></div></div>
-    <div class="tile e"><div class="k">รายจ่ายจริง</div><div class="v num" id="tEx">—</div><div class="s" id="tExS"></div></div>
+    <div class="tile e"><div class="k">เงินออกจากบัญชี</div><div class="v num" id="tEx">—</div><div class="s" id="tExS"></div></div>
     <div class="tile n"><div class="k">เหลือเป็นเงินสด</div><div class="v num" id="tNet">—</div><div class="s" id="tNetS"></div></div>
   </div>
-  <p class="xfer" id="atsrcNote"></p>
 
   <section id="cashSec">
     <h2>เงินสดเข้า-ออก รอบนี้</h2>
     <div class="flow" id="flow"></div>
-    <p class="hint" id="cashHint"></p>
     <div class="wealth"><span class="lb">ความมั่งคั่งเพิ่มขึ้นรอบนี้<span class="sub">เงินต้นที่ปลดหนี้ + เงินออม/ลงทุน + เงินสดที่เหลือ</span></span><span class="vv num" id="wealthV">—</span></div>
   </section>
 
@@ -287,6 +285,11 @@
     <h2>รายจ่ายรายวัน</h2>
     <div class="chartbox"><div class="chartscroll"><svg class="daily" id="daily" role="img" aria-label="กราฟแท่งรายจ่ายรายวัน"></svg></div></div>
   </section>
+
+  <details class="why" id="whyBox">
+    <summary>ทำไมตัวเลขเป็นแบบนี้</summary>
+    <div class="body"><p class="hint" id="whyBody"></p></div>
+  </details>
 
   </div><!-- /panel now -->
 
@@ -353,9 +356,7 @@
   </div><!-- /panel list -->
 
   <footer>
-    สร้างจากสลิปธนาคาร statement บัตรเครดิต และสลิปเงินเดือน ที่อยู่ใน Google Drive — อัปเดตอัตโนมัติทุกชั่วโมง<br>
-    นับเป็น <b>รอบเดือน 25 ถึง 24</b> เพราะเงินเดือนเข้าวันที่ 25 และค่างวดบ้าน/รถตัดวันเดียวกัน เงินก้อนนั้นกับบิลที่จ่ายด้วยเงินก้อนนั้นจึงอยู่รอบเดียวกัน<br>
-    รายจ่ายจากบัตรเครดิตนับที่ <b>วันที่ใช้จ่าย</b> ส่วนการจ่ายบิลบัตรนับเป็น <code>โอนย้าย</code> เพื่อไม่ให้นับซ้ำ
+    สร้างจากสลิปธนาคาร statement บัตรเครดิต และสลิปเงินเดือน ที่อยู่ใน Google Drive — อัปเดตอัตโนมัติทุกชั่วโมง
   </footer>
 </div>
 
@@ -373,6 +374,10 @@
   function thMonth(ym){var p=ym.split('-');return THMON[+p[1]-1]+' '+((+p[0])+543-2500).toString().padStart(2,'0');}
   function baht(n){return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
   function short(n){return n.toLocaleString('en-US',{maximumFractionDigits:0});}
+  /* ชื่อหมวดที่เก็บในข้อมูลกับชื่อที่อ่านเข้าใจ ไม่จำเป็นต้องเหมือนกัน
+     'ผ่อนสินทรัพย์' เก็บแต่ดอกเบี้ย เงินต้นแยกไปหมวด 'เงินต้นสินเชื่อ' แล้ว */
+  var CATLBL={'ผ่อนสินทรัพย์':'ดอกเบี้ยบ้าน + รถ'};
+  function catLbl(c){return CATLBL[c]||c;}
   function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
   try{var s=localStorage.getItem('ledger.month'); if(s && months.indexOf(s)>=0) cur=s;}catch(e){}
@@ -434,28 +439,37 @@
     /* ตัวเลขหลักมาจาก meta.cash ชุดเดียว ไม่คำนวณซ้ำจากแถว
        รายรับ = เงินเดือน "สุทธิ" ที่เข้าบัญชี ไม่ใช่ก่อนหัก */
     var inc = C? C.inc : 0;
-    var exp = C? C.living + C.interest : 0;
+    var exp = C? C.living + C.interest : 0;            /* รายจ่ายจริง */
+    var out = C? exp + C.principal + C.invest : 0;     /* เงินที่ออกจากบัญชีทั้งหมด */
     var left = C? C.left : 0;
 
+    /* การ์ด 3 ใบต้องบวกลบกันได้จริง: เข้า − ออก = เหลือ
+       เงินต้นค่างวดไม่ใช่ "รายจ่าย" แต่มันออกจากบัญชี จึงต้องอยู่ในใบกลาง */
     document.getElementById('tIn').textContent = baht(inc);
     document.getElementById('tInS').textContent = inc? 'เงินเดือนสุทธิ + รายรับอื่น' : 'ยังไม่มีข้อมูลรายรับรอบนี้';
-    document.getElementById('tEx').textContent = baht(exp);
-    document.getElementById('tExS').textContent = rs.filter(function(r){return r.t==='e'}).length + ' รายการ';
+    document.getElementById('tEx').textContent = baht(out);
+    document.getElementById('tExS').textContent = C
+      ? 'รายจ่ายจริง '+baht(exp)+' + เงินต้นค่างวด '+baht(C.principal)+(C.invest?' + ลงทุน '+baht(C.invest):'')
+      : '';
     var cr=cycleRange(cur);
     document.getElementById('cyc').textContent='รอบ '+fmtDay(cr.start)+' – '+fmtDay(cr.end);
     var nt=document.getElementById('tNet');
     nt.textContent = (left<0?'−':'') + baht(Math.abs(left));
     nt.className = 'v num ' + (left<0?'neg':'pos');
     document.getElementById('tNetS').textContent = inc
-      ? ('หลังจ่ายค่างวดแล้ว · เก็บได้ ' + ((inc-exp)/inc*100).toFixed(1) + '%')
+      ? (baht(inc)+' − '+baht(out)+' · '+(left<0?'−':'')+Math.abs(left/inc*100).toFixed(1)+'% ของเงินเข้า')
       : 'คำนวณอัตราการออมไม่ได้';
 
-    var A=META.atsrc, an=document.getElementById('atsrcNote');
-    an.innerHTML = (A && C && C.atsrc_exp)
-      ? 'ก่อนเงินเดือนเข้าบัญชี ถูกหักไปแล้ว <span class="num">'+baht(A.total)+'</span> บาท — '+
-        'ภาษี '+baht(A.tax)+' · ประกันสังคม '+baht(A.ss)+' · กองทุนสำรองเลี้ยงชีพ '+baht(A.pf)+
-        ' · กยศ. '+baht(A.sl)+' · TMN '+baht(A.tmn)+' (ไม่นับซ้ำในตัวเลขข้างบน)'
-      : '';
+    var A=META.atsrc;
+    document.getElementById('whyBody').innerHTML=
+      ((A && C && C.atsrc_exp)
+        ? '<b>เงินเดือนถูกหักก่อนเข้าบัญชี '+baht(A.total)+'</b> — ภาษี '+baht(A.tax)+
+          ' · ประกันสังคม '+baht(A.ss)+' · กองทุนสำรองเลี้ยงชีพ '+baht(A.pf)+' · กยศ. '+baht(A.sl)+
+          ' · TMN '+baht(A.tmn)+' สองก้อนแรกเป็นรายจ่าย อีกสองก้อนเพิ่มความมั่งคั่ง แต่ไม่ได้ผ่านบัญชี จึงไม่อยู่ในตัวเลขข้างบน<br><br>'
+        : '')+
+      '<b>เงินต้นค่างวดไม่ใช่รายจ่าย</b> เงินออกจากกระเป๋าจริง แต่กลายเป็นสินทรัพย์ของเรา จึงนับอยู่ใน "เงินออกจากบัญชี" แต่ไม่อยู่ในกราฟรายจ่ายแยกตามหมวด<br><br>'+
+      '<b>รายจ่ายบัตรเครดิตนับตอนรูด ไม่ใช่ตอนจ่ายบิล</b> ส่วนการจ่ายบิลนับเป็นโอนย้าย เพื่อไม่ให้นับซ้ำ ตัวเลข "เหลือเป็นเงินสด" จึงกันบิลบัตรไว้แล้ว<br><br>'+
+      '<b>นับเป็นรอบเดือน 25 ถึง 24</b> เพราะเงินเดือนเข้าวันที่ 25 และค่างวดบ้าน/รถตัดวันเดียวกัน เงินก้อนนั้นกับบิลที่จ่ายด้วยเงินก้อนนั้นจึงอยู่รอบเดียวกัน';
 
     var note=document.getElementById('note');
     if(META.partial && META.partial[cur]){ note.hidden=false; document.getElementById('noteTxt').textContent=META.partial[cur]; }
@@ -468,7 +482,7 @@
     cats.forEach(function(c){
       var d=document.createElement('div'); d.className='cat';
       d.innerHTML='<span class="nm"></span><span class="amt num"></span><span class="pct num"></span><span class="bar"><i></i></span>';
-      d.querySelector('.nm').textContent=c;
+      d.querySelector('.nm').textContent=catLbl(c);
       d.querySelector('.amt').textContent=baht(byCat[c]);
       d.querySelector('.pct').textContent=(byCat[c]/exp*100).toFixed(1)+'%';
       d.querySelector('.bar i').style.width=Math.max(1.5,byCat[c]/max*100)+'%';
@@ -503,9 +517,6 @@
        '<span class="tag">'+(left<0?'ติดลบ ต้องดึงจากเงินเก็บหรือเงินที่คนอื่นช่วยออก':'เอาไปเก็บหรือลงทุนต่อได้')+'</span></span>'+
        '<span class="vv num">'+(left<0?'−':'')+baht(Math.abs(left))+'</span></div>';
     document.getElementById('flow').innerHTML=h;
-    document.getElementById('cashHint').innerHTML=
-      'หักจากเงินเดือนไปก่อนเข้าบัญชีแล้ว: ภาษี + ประกันสังคม <b>'+baht(C.atsrc_exp)+'</b> (เป็นรายจ่าย) และ กองทุนสำรองเลี้ยงชีพ + กยศ. <b>'+baht(C.atsrc_save)+'</b> (เพิ่มความมั่งคั่ง) — สองก้อนนี้ไม่ได้ผ่านบัญชีจึงไม่อยู่ในตารางข้างบน<br>'+
-      'รายการบัตรเครดิตนับตอนรูด ไม่ใช่ตอนจ่ายบิล ตัวเลข "เหลือเป็นเงินสด" จึงเป็นเงินที่เหลือจริงหลังกันบิลบัตรไว้แล้ว';
     var w=document.getElementById('wealthV');
     w.textContent=(C.wealth<0?'−':'+')+baht(Math.abs(C.wealth));
     w.style.color = C.wealth<0 ? 'var(--expense)' : 'var(--accent)';
@@ -572,7 +583,7 @@
       document.getElementById('heroV').textContent=(A.spend<0?'−':'')+baht(Math.abs(A.spend));
       document.getElementById('heroPer').innerHTML=
         (A.hold>0?'กันไว้จ่ายค่างวด/ประกันอีก <b>'+baht(A.hold)+'</b><br>':'')+
-        'ยอดบัญชี ณ '+asof+' · งบที่เหลือตามแผน '+capTxt;
+        'ยอดบัญชี ณ '+asof;
       document.getElementById('heroRows').innerHTML=
         A.accounts.map(function(a){
           return '<div class="pr"><span class="lb">'+esc(a.k)+
@@ -773,7 +784,7 @@
       tr.querySelector('.nm').textContent=r.m;
       tr.querySelector('.sub').textContent=r.n;
       var chip=tr.querySelector('.chip');
-      chip.textContent=r.c;
+      chip.textContent=catLbl(r.c);
       if(r.q==='ต่ำ'){chip.className='chip low';chip.title='ความมั่นใจต่ำ ควรตรวจสอบ';}
       tr.querySelector('.amt').textContent=sign+baht(r.a);
       frag.appendChild(tr);
